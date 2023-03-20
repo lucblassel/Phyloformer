@@ -2,6 +2,10 @@ import os
 from setuptools import setup, find_packages
 from phyloformer import __version__
 
+requirements = []
+with open("./requirements.txt", "r") as r_file:
+    requirements = r_file.read().splitlines()
+
 setup(
     name="phyloformer",
     version=__version__,
@@ -12,16 +16,7 @@ setup(
     author="Luca Nesterenko, Bastien Boussau, Laurent Jacob",
     license="CeCIL",
     packages=find_packages(),
-    install_requires=[
-	"torch>=1.13.1",
-	"scipy>=1.7.3",
-	"numpy>=1.21.2",
-	"ete3>=3.1.2",
-	"biopython>=1.79",
-	"dendropy>=4.5.2",
-	"scikit-bio>=0.5.6",
-    "tqdm>=4.65.0",
-    ],
+    install_requires=requirements,
     package_data={
         'phyloformer': [
             os.path.join("pretrained_models", "*"),
