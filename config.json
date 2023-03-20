@@ -1,0 +1,14 @@
+{
+    "n_blocks":6,
+    "n_heads": 4,
+    "h_dim": 64,
+    "amp": true,
+    "dropout": 0.0,
+    "loss": "L2",
+	"device": "cpu",
+    "optimizer": "Adam",
+    "learning_rate": 0.00039,
+    "batch_size": 4,
+    "epochs": 3,
+    "n_folds": 1
+}
