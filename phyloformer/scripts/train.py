@@ -11,7 +11,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from phyloformer.data import TensorDataset
-from phyloformer.phyloformer import AttentionNet
+from phyloformer.phyloformer import AttentionNet, load_model
 from phyloformer.training import init_training, load_checkpoint, training_loop
 
 TITLE = """\
@@ -92,6 +92,14 @@ def main():
         metavar="CHECKPOINT",
     )
     parser.add_argument(
+        "-f",
+        "--fine-tune",
+        required=False,
+        type=str,
+        help="Load pre-trained model to fine-tune",
+        metavar="MODEL",
+    )
+    parser.add_argument(
         "-g",
         "--log",
         required=False,
@@ -125,6 +133,7 @@ def main():
     device = (
         "cuda" if config["device"] == "cuda" and torch.cuda.is_available() else "cpu"
     )
+    config["device"] = device
     print(f"Training will happen on device: {device}\n.")
 
     identifier = (
@@ -149,7 +158,13 @@ def main():
         model, optimizer, scheduler, criterion, _ = load_checkpoint(
             args.load, device=device
         )
+    elif args.fine_tune is not None:
+        print(f"Loading pre-trained model from: {args.fine_tune}")
+        model = load_model(args.fine_tune, device=device)
+        model.to(device)
+        optimizer, scheduler, criterion = init_training(model, **config)
     else:
+        print("Creating new phyloformer model")
         model = AttentionNet(**config)
         model.to(device)
         optimizer, scheduler, criterion = init_training(model, **config)
