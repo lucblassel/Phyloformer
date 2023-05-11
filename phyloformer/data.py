@@ -2,6 +2,7 @@
 The data module contains functions that are used to load alignment data in a format that
 the Phyloformer network understands. 
 """
+from itertools import combinations
 import os
 from typing import Dict, List, Tuple, Optional
 
@@ -11,9 +12,13 @@ import torch
 from Bio import SeqIO
 from ete3 import Tree
 from torch.utils.data import Dataset
+from phylodm import PhyloDM
+from torch.nn.functional import one_hot
 
 AMINO_ACIDS = np.array(list("ARNDCQEGHILKMFPSTWYVX-"))
 
+LOOKUP = {c: i for i, c in enumerate(b"ARNDCQEGHILKMFPSTWYVX-")}
+N_AAs = len(LOOKUP)
 
 class TensorDataset(Dataset):
     """A Dataset class to train Phyloformer networks"""
@@ -53,8 +58,47 @@ class TensorDataset(Dataset):
         return pair["X"], pair["y"]
 
 
-def load_alignment(path: str) -> Tuple[torch.Tensor, List[str]]:
-    """Loads an alignment into a tensor digestible by the Phyloformer network
+class OnTheFly(Dataset):
+    def __init__(self, trees: str, alignments: str) -> None:
+        super().__init__()
+        self.trees = trees
+        self.alns = alignments
+
+        self.pairs = []
+        for treefile in os.listdir(self.trees):
+            id_ = os.path.splitext(treefile)[0]
+            alnfile = f"{id_}.fasta"
+            if not os.path.exists(os.path.join(self.alns, alnfile)):
+                raise ValueError(
+                    f"Input tree {treefile} has no corresponding alignment "
+                    "{alnfile} in {self.alns}"
+                    )
+            self.pairs.append((
+                os.path.join(self.trees, treefile),
+                os.path.join(self.alns, alnfile),
+            ))
+
+    def __len__(self):
+        return len(self.pairs)
+    
+    def __getitem__(self, index: int):
+        tree, aln = self.pairs[index]
+        X, ids = load_alignment(aln)
+        y = []
+        pdm = PhyloDM.load_from_newick_path(tree)
+        dm = pdm.dm(norm=False)
+        labels = pdm.taxa()
+        # Generating this lookup is faster for bigger trees, 
+        # however it can slow things down with small trees (e.g. 20 leaves)
+        lookup = {label:index for index,label in enumerate(labels)}
+        for n1, n2 in combinations(ids, 2):
+            y.append(dm[lookup[n1], lookup[n2]])
+        y = torch.tensor(y)
+
+
+def load_alignment(path: str, device: str="cpu") -> Tuple[torch.Tensor, List[str]]:
+    """
+    Loads an alignment into a tensor digestible by the Phyloformer network
 
     Parameters
     ----------
@@ -67,17 +111,22 @@ def load_alignment(path: str) -> Tuple[torch.Tensor, List[str]]:
         a tuple containing:
          - a tensor representing the alignment (shape 22 * seq_len * n_seq)
          - a list of ids of the sequences in the alignment
-
     """
+    seqs = []
+    ids = []
+    with open(path, "rb") as infile:
+        for line in infile:
+            if line.startswith(b">"):
+                seqs.append([])
+                ids.append(line.strip()[1:].decode("utf-8"))
+                continue
+            for c in line.strip():
+                seqs[-1].append(LOOKUP[c])
 
-    tensor = []
-    parsed = _parse_alignment(path)
-    for sequence in parsed.values():
-        tensor.append(
-            torch.from_numpy(_sequence_to_one_hot(sequence)).t().view(22, 1, -1)
-        )
+    seqs = torch.tensor(seqs).to(device)
 
-    return torch.cat(tensor, dim=1).transpose(-1, -2), list(parsed.keys())
+    return one_hot(seqs, num_classes=N_AAs).permute(2, 1, 0), ids
+
 
 
 def _read_distances_from_tree(
