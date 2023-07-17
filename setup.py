@@ -5,9 +5,16 @@ requirements = []
 with open("./requirements.txt", "r") as r_file:
     requirements = r_file.read().splitlines()
 
+def get_version():
+    with open("./phyloformer/__init__.py", "r") as file:
+        for line in file:
+            if line.startswith("__version__"):
+                 return line.split('"')[1]
+    return "unknown"
+
 setup(
     name="phyloformer",
-    version="0.0.1a4",
+    version=get_version(),
     description="Fast and accurate Phylogeny estimation with self-attention Networks",
     long_description=open("./README.md").read(),
     long_description_content_type="text/markdown",

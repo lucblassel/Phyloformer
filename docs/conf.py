@@ -13,11 +13,12 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('..'))
 
-version = None
-with open("../setup.py", "r") as file:
-    for line in file:
-        if line.strip().startswith("version"):
-            version = line.split('"')[1].strip()
+def get_version():
+    with open("../phyloformer/__init__.py", "r") as file:
+        for line in file:
+            if line.startswith("__version__"):
+                 return line.split('"')[1]
+    return "unknown"
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -25,7 +26,7 @@ with open("../setup.py", "r") as file:
 project = 'Phyloformer'
 copyright = '2023, Luca Nesterenko'
 author = 'Luca Nesterenko, Bastien Bousseau, Laurent Jacob'
-release = version
+release = get_version()
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
