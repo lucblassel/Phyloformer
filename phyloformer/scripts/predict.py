@@ -84,17 +84,22 @@ def main():
     if out_dir != "." and not os.path.exists(out_dir):
         os.mkdir(out_dir)
 
-    device = "cuda" if torch.cuda.is_available() and args.gpu else "cpu"
+    device = "cpu"
+    if args.gpu and torch.cuda.is_available():
+        device = "cuda"
+    elif args.gpu and torch.backends.mps.is_available():
+        device = "mps"
+
 
     model = None
     if args.model.lower() == "seqgen":
-        model = seqgen()
+        model = seqgen(device=device)
     elif args.model.lower() == "evosimz":
-        model = evosimz()
+        model = evosimz(device=device)
     elif args.model is not None:
         if not os.path.isfile(args.model):
             raise ValueError(f"The specified model file: {args.model} does not exist")
-        model = load_model(args.model)
+        model = load_model(args.model, device=device)
     else:
         raise ValueError("You must specify the model to use")
 

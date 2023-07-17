@@ -1,7 +1,7 @@
 """The phyloformer module contains the Phyloformer network as well as functions to 
 create and load instances of the network from disk
 """
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List, Tuple
 
 import skbio
 import torch
@@ -141,7 +141,7 @@ class AttentionNet(nn.Module):
 
         self.seq2pair = seq2pair.to(self.device)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, List[Any]]:
         """Doed a forward pass through the Phyloformer network
 
         Parameters
@@ -153,6 +153,8 @@ class AttentionNet(nn.Module):
         -------
         torch.Tensor
             Output tensor (shape 1\*n_pairs)
+        List[Any]
+            Attention maps
 
         Raises
         ------
@@ -204,7 +206,7 @@ class AttentionNet(nn.Module):
         # we finally get (batch_size,nb_pairs)
         out = torch.squeeze(torch.mean(out, dim=-1))
 
-        return out
+        return out, attentionmaps
 
     def _get_architecture(self) -> Dict[str, Any]:
         """Returns architecture parameters of the model
@@ -221,7 +223,6 @@ class AttentionNet(nn.Module):
             "dropout": self.dropout,
             "seq_len": self.seq_len,
             "n_seqs": self.n_seqs,
-            "device": self.device,
         }
 
     def save(self, path: str) -> None:
@@ -265,11 +266,11 @@ class AttentionNet(nn.Module):
 
         # reshape from 22*n_seq*seq_len to 1*22*n_seq*seq_len
         tensor = X[None, :, :]
-        tensor.to(self.device)
+        tensor = tensor.to(self.device)
 
         # Infer distances
         with torch.no_grad():
-            predictions = self(tensor.float())
+            predictions, _ = self(tensor.float())
         predictions = predictions.view(self.n_pairs)
 
         # Build distance matrix
@@ -348,13 +349,15 @@ def _init_model(model: AttentionNet, state_dict: dict, single_gpu: bool):
     model.load_state_dict(new_state_dict, strict=True)
 
 
-def load_model(path: str, single_gpu: bool = True) -> AttentionNet:
+def load_model(path: str, device: str = "cpu", single_gpu: bool = True) -> AttentionNet:
     """Load a Phyloformer istance froms disk
 
     Parameters
     ----------
     path : str
         Path to model saved with AttentionNet.save()
+    device : str, optional
+        Device to load model to ("cpu" or "cuda"), by default "cpu"
     single_gpu: bool, optional
         Wether inference/fine-tuning will be done on a single GPU, by default True
 
@@ -369,15 +372,17 @@ def load_model(path: str, single_gpu: bool = True) -> AttentionNet:
         If the file does not contain the state_dict and model architecture parameters
     """
 
-    loaded = torch.load(path)
+    loaded = torch.load(path, map_location=device)
     if loaded.get("state_dict") is None or loaded.get("architecture") is None:
         raise ValueError(
             "Error loading model. Saved file must contain both a 'state_dict' "
             "and a 'architecture' entry"
         )
 
-    model = AttentionNet(**loaded["architecture"])
+    loaded["architecture"].pop("device")
+    model = AttentionNet(**loaded["architecture"], device=device)
     _init_model(model, loaded["state_dict"], single_gpu)
+    model.to(device)
 
     return model
 
