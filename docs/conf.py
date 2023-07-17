@@ -14,9 +14,9 @@ import sys
 sys.path.insert(0, os.path.abspath('..'))
 
 version = None
-with open("../phyloformer/__init__.py", "r") as file:
+with open("../setup.py", "r") as file:
     for line in file:
-        if line.startswith("__version__"):
+        if line.strip().startswith("version"):
             version = line.split('"')[1].strip()
 
 # -- Project information -----------------------------------------------------
